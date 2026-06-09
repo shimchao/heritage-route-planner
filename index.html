@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>창대여행일지</title>
+<!-- 홈 화면 추가 시 아이콘/이름 -->
+<link rel="apple-touch-icon" href="icon-180.png" />
+<link rel="icon" type="image/png" href="icon-192.png" />
+<meta name="apple-mobile-web-app-title" content="창대여행일지" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#2c3e50" />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif; }
+  #app { display: flex; height: 100vh; overflow: hidden; }
+
+  #panel { width: 348px; flex-shrink: 0; background: #f7f6f1; border-right: 1px solid #e0ddd2; display: flex; flex-direction: column; overflow: hidden; }
+  #panel header { padding: 16px 20px 12px; background: #2c3e50; color: #fff; }
+  #panel header .badge { display: inline-block; background: #e8503a; color:#fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; letter-spacing: .5px; }
+  #panel header h1 { font-size: 18px; margin: 8px 0 2px; font-weight: 800; }
+  #panel header p { font-size: 11.5px; margin: 0; opacity: .8; }
+
+  #origin-box { margin: 12px 12px 6px; padding: 10px 12px; background:#fff; border:1px solid #ececec; border-radius: 8px; display:flex; align-items:center; gap:10px; cursor:pointer; }
+  #origin-box:hover { background:#fafaf7; }
+  .home-dot { width: 26px; height:26px; border-radius:8px; background:#e8503a; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .home-dot span { font-size:15px; }
+  #origin-box .t { font-size:11px; color:#999; font-weight:700; }
+  #origin-box .a { font-size:12.5px; color:#333; font-weight:600; }
+
+  /* 진행률 */
+  #progress-box { margin: 0 12px 4px; padding: 8px 12px 10px; }
+  .pg-top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px; }
+  .pg-label { font-size:11px; color:#8a8676; font-weight:700; letter-spacing:.5px; }
+  .pg-num { font-size:12px; font-weight:800; color:#2c3e50; }
+  .pg-num b { color:#43A047; }
+  .pg-bar { height:7px; background:#e6e3d8; border-radius:4px; overflow:hidden; }
+  .pg-fill { height:100%; background:linear-gradient(90deg,#43A047,#66bb6a); width:0%; transition:width .4s; }
+
+  .section-title { font-size: 11px; font-weight: 700; color:#8a8676; letter-spacing: 1px; padding: 8px 20px 6px; display:flex; justify-content:space-between; align-items:center; }
+  .section-title .hint { font-weight:500; color:#bbb; letter-spacing:0; font-size:10px; }
+
+  #courses { overflow-y: auto; flex: 1; padding-bottom: 8px; }
+  .course { margin: 0 12px 4px; border-radius: 8px; overflow: hidden; background:#fff; border: 1px solid #ececec; }
+  .course-head { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; user-select: none; }
+  .course-head:hover { background:#fafaf7; }
+  .dot { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(0,0,0,.12); }
+  .course-name { font-size: 13px; font-weight: 700; color:#333; flex: 1; }
+  .course-count { font-size: 10.5px; color:#999; background:#f0efe9; padding: 1px 7px; border-radius: 10px; }
+  .course-toggle { font-size: 10px; color:#bbb; }
+
+  .course-items { display: none; padding: 2px 0 6px; }
+  .course.open .course-items { display: block; }
+  .item { display: flex; align-items: center; gap: 7px; padding: 4px 10px 4px 12px; font-size: 12.5px; color:#555; }
+  .item:hover { background:#f4f3ee; }
+  .item .chk { width:17px; height:17px; flex-shrink:0; cursor:pointer; accent-color:#2c3e50; }
+  .item .seq { font-size:10px; font-weight:800; color:#fff; background:#2c3e50; width:18px; height:18px; border-radius:50%; display:none; align-items:center; justify-content:center; flex-shrink:0; }
+  .item.picked .seq { display:flex; }
+  .item .code { font-size: 10px; font-weight: 700; color:#fff; padding: 1px 5px; border-radius: 4px; flex-shrink: 0; }
+  .item .nm { flex:1; cursor:pointer; }
+  .item:hover .nm { color:#000; }
+  .item .done-btn { flex-shrink:0; width:22px; height:22px; border-radius:50%; border:1.5px solid #ccc; background:#fff; cursor:pointer; color:#ccc; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; padding:0; line-height:1; }
+  .item .done-btn:hover { border-color:#43A047; color:#43A047; }
+  .item.done .nm { color:#bbb; text-decoration:line-through; }
+  .item.done .code { opacity:.4; }
+  .item.done .done-btn { background:#43A047; border-color:#43A047; color:#fff; }
+
+  #route-summary { border-top: 2px solid #2c3e50; background:#fff; padding: 12px 16px 14px; }
+  #route-summary .empty { font-size:12px; color:#aaa; text-align:center; padding: 4px 0; }
+  .rs-stats { display:flex; gap:8px; margin-bottom:10px; }
+  .rs-card { flex:1; background:#f7f6f1; border-radius:8px; padding:8px 10px; text-align:center; }
+  .rs-card .v { font-size:18px; font-weight:800; color:#2c3e50; line-height:1.1; }
+  .rs-card .l { font-size:10px; color:#999; margin-top:2px; }
+  .rs-actions { display:flex; gap:8px; }
+  .btn-n { flex:1; background:#03C75A; color:#fff; border:none; border-radius:8px; padding:11px; font-size:13px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; }
+  .btn-n:hover { background:#02b350; }
+  .btn-clear { background:#fff; border:1px solid #d8d5c8; color:#888; border-radius:8px; padding:11px 12px; font-size:12px; cursor:pointer; font-weight:600; }
+  .btn-clear:hover { background:#f0efe9; }
+  .rs-sub { display:flex; gap:8px; margin-top:7px; }
+  .btn-sub { flex:1; background:#fff; border:1px solid #e0ddd2; color:#999; border-radius:7px; padding:7px; font-size:11px; cursor:pointer; font-weight:600; }
+  .btn-sub:hover { background:#f4f3ee; color:#555; }
+  .rs-note { font-size:10px; color:#b3afa0; margin-top:8px; line-height:1.4; }
+
+  #map { flex: 1; }
+
+  .pin { display:flex; align-items:center; justify-content:center; width: 26px; height: 26px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 2px 5px rgba(0,0,0,.35); border: 2px solid #fff; position:relative; }
+  .pin span { transform: rotate(45deg); color:#fff; font-size: 9px; font-weight: 800; }
+  .pin.sel { border-color:#ffd54f; box-shadow: 0 0 0 3px #ffd54f, 0 2px 6px rgba(0,0,0,.4); }
+  .pin.done { opacity:.45; }
+  .pin .check { position:absolute; top:-7px; right:-7px; transform:rotate(45deg); width:14px; height:14px; background:#43A047; border:2px solid #fff; border-radius:50%; color:#fff; font-size:8px; font-weight:900; display:flex; align-items:center; justify-content:center; }
+  .home-pin { width:30px; height:30px; background:#e8503a; border-radius:50% 50% 50% 0; transform:rotate(-45deg); border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; }
+  .home-pin span { transform:rotate(45deg); font-size:15px; }
+
+  .leaflet-popup-content { margin: 12px 14px; font-family: inherit; }
+  .pop-code { font-size: 11px; font-weight: 800; color:#fff; padding: 2px 7px; border-radius: 4px; display:inline-block; }
+  .pop-name { font-size: 15px; font-weight: 800; margin: 7px 0 2px; color:#222; }
+  .pop-course { font-size: 11.5px; color:#777; }
+  .pop-btns { margin-top:9px; display:flex; gap:6px; }
+  .pop-btn { font-size:12px; padding:6px 10px; border-radius:6px; cursor:pointer; font-weight:700; border:none; }
+  .pop-add { background:#2c3e50; color:#fff; }
+  .pop-rm { background:#eee; color:#666; }
+  .pop-done { background:#43A047; color:#fff; }
+  .pop-undone { background:#eef5ef; color:#43A047; border:1px solid #c8e6c9; }
+
+  /* 모바일 탭바 (PC에선 숨김) */
+  #mobile-tabs { display: none; }
+
+  /* 🎉 완주 축하 모달 */
+  #celebrate-modal { position: fixed; inset: 0; z-index: 9999; display: none; align-items: center; justify-content: center; background: rgba(20,25,35,.72); backdrop-filter: blur(3px); padding: 24px; }
+  #celebrate-modal.show { display: flex; }
+  .cm-box { background: linear-gradient(160deg,#fffdf7,#fff4e6); border-radius: 22px; padding: 36px 30px 28px; max-width: 360px; width: 100%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.4); animation: cmPop .5s cubic-bezier(.18,1.4,.4,1); }
+  @keyframes cmPop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .cm-emoji { font-size: 46px; letter-spacing: 2px; margin-bottom: 6px; animation: cmBounce 1.2s ease-in-out infinite; }
+  @keyframes cmBounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+  .cm-title { font-size: 23px; font-weight: 900; color: #2c3e50; margin: 8px 0 6px; line-height: 1.3; }
+  .cm-sub { font-size: 14px; color: #8a7a5e; line-height: 1.6; margin-bottom: 22px; font-weight: 600; }
+  .cm-sub b { color: #e8503a; font-size: 16px; }
+  #cm-close { background: #2c3e50; color: #fff; border: none; border-radius: 12px; padding: 13px 0; width: 100%; font-size: 15px; font-weight: 800; cursor: pointer; }
+  #cm-close:hover { background: #1f2d3d; }
+
+  @media (max-width: 720px) {
+    html, body { height: 100%; overflow: hidden; }
+    #app { flex-direction: column; height: 100vh; overflow: hidden; }
+
+    #mobile-tabs { display: flex; order: -2; flex: none; background:#eceadf; }
+    #mobile-tabs button { flex:1; padding: 13px 0; border:none; background:transparent; font-size:13.5px; font-weight:800; color:#9a968a; cursor:pointer; }
+    #mobile-tabs button.active { background:#fff; color:#2c3e50; box-shadow: inset 0 -3px 0 #2c3e50; }
+
+    #panel { width:100%; height:auto; overflow:visible; border-right:none; order:0; display:flex; flex-direction:column; flex:1; min-height:0; }
+    #map { width:100%; order:0; flex:1; min-height:0; height:auto; }
+
+    /* 📋 코스짜기 뷰 */
+    body.view-plan #map { display:none; }
+    body.view-plan #panel { display:flex; overflow-y:auto; }
+    body.view-plan #courses { flex:none; overflow:visible; padding-bottom: 40px; }
+    body.view-plan.has-route #courses { padding-bottom: 250px; }
+
+    /* 🗺️ 지도뷰 */
+    body.view-map #map { display:block; }
+    body.view-map #panel { flex:none; height:auto; }
+    body.view-map #panel header,
+    body.view-map #origin-box,
+    body.view-map #progress-box,
+    body.view-map .section-title,
+    body.view-map #courses { display:none; }
+
+    /* 경로 요약: 선택 시 하단 고정 (양 탭 공통) */
+    #route-summary { position: fixed; left:0; right:0; bottom:0; z-index:30; box-shadow:0 -3px 14px rgba(0,0,0,.18); max-height:64vh; overflow-y:auto; }
+    body:not(.has-route) #route-summary { display:none; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="mobile-tabs">
+    <button data-view="plan" class="active">📋 코스짜기</button>
+    <button data-view="map">🗺️ 지도뷰</button>
+  </div>
+  <div id="panel">
+    <header>
+      <span class="badge">UNESCO · 세계유산위원회</span>
+      <h1>귀여운 창대의 루트 플래너</h1>
+      <p>체크 = 경로 계산 · ✓ = 다녀온 곳 표시</p>
+    </header>
+
+    <div id="origin-box" title="출발지로 이동">
+      <span class="home-dot"><span>🏠</span></span>
+      <div>
+        <div class="t">출발지</div>
+        <div class="a">대구 중구 재마루길 77</div>
+      </div>
+    </div>
+
+    <div id="progress-box">
+      <div class="pg-top">
+        <span class="pg-label">방문 진행률</span>
+        <span class="pg-num"><b id="pg-done">0</b> / 30 곳</span>
+      </div>
+      <div class="pg-bar"><div class="pg-fill" id="pg-fill"></div></div>
+    </div>
+
+    <div class="section-title"><span>유적지 선택</span><span class="hint">□ 경유지 · ✓ 방문완료</span></div>
+    <div id="courses"></div>
+
+    <div id="route-summary">
+      <div class="empty" id="rs-empty">방문할 유적지를 체크하면<br/>여기에 경로·거리·시간이 표시됩니다.</div>
+      <div id="rs-content" style="display:none;">
+        <div class="rs-stats">
+          <div class="rs-card"><div class="v" id="rs-count">0</div><div class="l">경유지</div></div>
+          <div class="rs-card"><div class="v" id="rs-dist">-</div><div class="l">총 거리</div></div>
+          <div class="rs-card"><div class="v" id="rs-time">-</div><div class="l">예상 시간</div></div>
+        </div>
+        <div class="rs-actions">
+          <button class="btn-n" id="btn-naver">🧭 네이버지도 길찾기</button>
+          <button class="btn-clear" id="btn-clear">초기화</button>
+        </div>
+        <div class="rs-sub">
+          <button class="btn-sub" id="btn-kakao">🚗 카카오맵</button>
+          <button class="btn-sub" id="btn-google">🗺️ 구글맵</button>
+          <button class="btn-sub" id="btn-done-all">✓ 방문완료</button>
+        </div>
+        <div class="rs-note" id="rs-note">📱 휴대폰 + 지도앱(네이버/카카오)에서 경유지까지 자동 입력됩니다. PC에선 앱이 없어 안 열릴 수 있어요.</div>
+      </div>
+    </div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<div id="celebrate-modal">
+  <div class="cm-box">
+    <div class="cm-emoji">🎉🏆🎉</div>
+    <div class="cm-title">고생했다<br/>멋쟁이 창대야!</div>
+    <div class="cm-sub">세계유산 <b>30곳 완주</b> 🎊</div>
+    <button id="cm-close">닫기</button>
+  </div>
+</div>
+
+<script>
+// ── 출발지 ──
+const ORIGIN = { name:"대구 중구 재마루길 77 (출발지)", lat:35.8647, lng:128.5853 };
+
+const COURSES = {
+  gaya:   { name: "가야문명의 길", color: "#8B5E3C" },
+  sansa:  { name: "산사의 길",     color: "#43A047" },
+  seowon: { name: "서원의 길",     color: "#7E57C2" },
+  millen: { name: "천년정신의 길", color: "#1E88E5" },
+  sori:   { name: "소릿길",        color: "#FB8C00" },
+  prehist:{ name: "선사지질의 길", color: "#26A69A" },
+  busan:  { name: "신규(부산권 특별거점)", color: "#EC407A" },
+};
+
+const SITES = [
+  { code:"W01", name:"고령 지산동 고분군",        lat:35.7258, lng:128.2617, course:"gaya" },
+  { code:"W02", name:"고성 송학동 고분군",        lat:34.9740, lng:128.3232, course:"gaya" },
+  { code:"W03", name:"국립김해박물관",            lat:35.2372, lng:128.8717, course:"gaya" },
+  { code:"W04", name:"김해 대성동 고분군",        lat:35.2362, lng:128.8792, course:"gaya" },
+  { code:"W05", name:"김해 수로왕릉",            lat:35.2283, lng:128.8772, course:"gaya" },
+  { code:"W06", name:"창녕 교동과 송현동 고분군",  lat:35.5432, lng:128.5022, course:"gaya" },
+  { code:"W07", name:"함안 말이산 고분군",        lat:35.2719, lng:128.4041, course:"gaya" },
+  { code:"W08", name:"합천 옥전 고분군",          lat:35.5527, lng:128.2298, course:"gaya" },
+  { code:"W09", name:"안동 봉정사",              lat:36.6331, lng:128.6829, course:"sansa" },
+  { code:"W10", name:"양산 통도사",              lat:35.4880, lng:129.0631, course:"sansa" },
+  { code:"W11", name:"영주 부석사",              lat:36.9994, lng:128.6873, course:"sansa" },
+  { code:"W12", name:"합천 해인사 장경판전",      lat:35.8014, lng:128.0981, course:"sansa" },
+  { code:"W13", name:"경주 옥산서원",            lat:36.0001, lng:129.1648, course:"seowon" },
+  { code:"W14", name:"달성 도동서원",            lat:35.7260, lng:128.4562, course:"seowon" },
+  { code:"W15", name:"안동 도산서원",            lat:36.7282, lng:128.8467, course:"seowon" },
+  { code:"W16", name:"안동 병산서원",            lat:36.5389, lng:128.6611, course:"seowon" },
+  { code:"W17", name:"영주 소수서원",            lat:36.9168, lng:128.5548, course:"seowon" },
+  { code:"W18", name:"경주 계림",               lat:35.8341, lng:129.2179, course:"millen" },
+  { code:"W19", name:"경주 대릉원 일원",         lat:35.8381, lng:129.2106, course:"millen" },
+  { code:"W20", name:"경주 불국사",             lat:35.7903, lng:129.3320, course:"millen" },
+  { code:"W21", name:"경주 석굴암",             lat:35.7950, lng:129.3490, course:"millen" },
+  { code:"W22", name:"경주 월성",               lat:35.8369, lng:129.2243, course:"millen" },
+  { code:"W23", name:"경주 양동마을",           lat:36.0049, lng:129.2562, course:"millen" },
+  { code:"W24", name:"안동 하회마을",           lat:36.5390, lng:128.5181, course:"sori" },
+  { code:"W25", name:"울주 대곡리 반구대 암각화", lat:35.6118, lng:129.1763, course:"prehist" },
+  { code:"W26", name:"울주 천전리 명문과 암각화", lat:35.6289, lng:129.1793, course:"prehist" },
+  { code:"W27", name:"부산 아미동 비석문화마을",  lat:35.0966, lng:129.0181, course:"busan" },
+  { code:"W28", name:"부산 임시수도기념관",      lat:35.1071, lng:129.0179, course:"busan" },
+  { code:"W29", name:"재한유엔기념공원",         lat:35.1232, lng:129.0972, course:"busan" },
+  { code:"W30", name:"K-Heritage House (부산 벡스코)", lat:35.1688, lng:129.1389, course:"busan" },
+];
+
+// ── 상태 (마커 생성보다 먼저 선언) ──
+const STORAGE_KEY = 'mfo-heritage-visited';
+let selected = [];               // 경유지 선택(순서)
+let visited = loadVisited();     // 방문완료 Set
+let routeLine = null;
+
+function loadVisited() {
+  try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')); }
+  catch(e) { return new Set(); }
+}
+function saveVisited() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...visited])); } catch(e) {}
+}
+
+// ── 지도 ──
+const map = L.map('map', { zoomControl: true }).setView([35.85, 128.85], 9);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19,
+}).addTo(map);
+
+const homeIcon = L.divIcon({ className:'', html:`<div class="home-pin"><span>🏠</span></div>`, iconSize:[30,30], iconAnchor:[15,30], popupAnchor:[0,-30] });
+const homeMarker = L.marker([ORIGIN.lat, ORIGIN.lng], { icon: homeIcon }).addTo(map);
+homeMarker.bindPopup(`<div class="pop-name">🏠 출발지</div><div class="pop-course">대구 중구 재마루길 77</div>`);
+
+const markers = {};
+const bounds = [[ORIGIN.lat, ORIGIN.lng]];
+function makeIcon(s) {
+  const sel = selected.includes(s.code), done = visited.has(s.code);
+  return L.divIcon({ className:'', html:`<div class="pin ${sel?'sel':''} ${done?'done':''}" style="background:${COURSES[s.course].color}"><span>${s.code.replace('W','')}</span>${done?'<div class="check">✓</div>':''}</div>`, iconSize:[26,26], iconAnchor:[13,26], popupAnchor:[0,-26] });
+}
+SITES.forEach(s => {
+  const m = L.marker([s.lat, s.lng], { icon: makeIcon(s) }).addTo(map);
+  m.bindPopup(popupHtml(s));
+  m.on('popupopen', () => bindPopupBtns(s));
+  markers[s.code] = m;
+  bounds.push([s.lat, s.lng]);
+});
+map.fitBounds(bounds, { padding: [40, 40] });
+
+function popupHtml(s) {
+  const picked = selected.includes(s.code), done = visited.has(s.code);
+  return `
+    <span class="pop-code" style="background:${COURSES[s.course].color}">${s.code}</span>
+    <div class="pop-name">${s.name}${done?' ✓':''}</div>
+    <div class="pop-course">${COURSES[s.course].name}</div>
+    <div class="pop-btns">
+      <button class="pop-btn ${picked?'pop-rm':'pop-add'}" id="pb-add-${s.code}">${picked?'− 경유지 제외':'＋ 경유지'}</button>
+      <button class="pop-btn ${done?'pop-undone':'pop-done'}" id="pb-done-${s.code}">${done?'↩ 방문취소':'✓ 다녀옴'}</button>
+    </div>`;
+}
+function bindPopupBtns(s) {
+  const a = document.getElementById('pb-add-'+s.code);
+  const d = document.getElementById('pb-done-'+s.code);
+  if (a) a.onclick = () => { toggleSelect(s.code); markers[s.code].setPopupContent(popupHtml(s)); bindPopupBtns(s); };
+  if (d) d.onclick = () => { toggleVisited(s.code); markers[s.code].setPopupContent(popupHtml(s)); bindPopupBtns(s); };
+}
+
+// ── 토글 ──
+function toggleSelect(code) {
+  const i = selected.indexOf(code);
+  if (i >= 0) selected.splice(i, 1); else selected.push(code);
+  refreshUI(); recalcRoute();
+}
+function toggleVisited(code) {
+  if (visited.has(code)) visited.delete(code); else visited.add(code);
+  saveVisited(); refreshUI();
+}
+
+// ── 패널 렌더 ──
+const coursesEl = document.getElementById('courses');
+const isMobile = window.matchMedia('(max-width: 720px)').matches;
+Object.keys(COURSES).forEach(c => {
+  const info = COURSES[c];
+  const items = SITES.filter(s => s.course === c);
+  const div = document.createElement('div');
+  div.className = isMobile ? 'course' : 'course open';
+  div.innerHTML = `
+    <div class="course-head">
+      <span class="dot" style="background:${info.color}"></span>
+      <span class="course-name">${info.name}</span>
+      <span class="course-count" id="cc-${c}">${items.length}</span>
+      <span class="course-toggle">▼</span>
+    </div>
+    <div class="course-items">
+      ${items.map(s => `
+        <div class="item" data-code="${s.code}">
+          <input type="checkbox" class="chk" data-code="${s.code}" title="경유지 추가">
+          <span class="seq" id="seq-${s.code}"></span>
+          <span class="code" style="background:${info.color}">${s.code}</span>
+          <span class="nm" data-code="${s.code}">${s.name}</span>
+          <button class="done-btn" data-code="${s.code}" title="다녀온 곳으로 표시">✓</button>
+        </div>`).join('')}
+    </div>`;
+  coursesEl.appendChild(div);
+
+  if (isMobile) div.querySelector('.course-toggle').textContent = '▶';
+  div.querySelector('.course-head').addEventListener('click', () => {
+    div.classList.toggle('open');
+    div.querySelector('.course-toggle').textContent = div.classList.contains('open') ? '▼' : '▶';
+  });
+  div.querySelectorAll('.chk').forEach(chk => chk.addEventListener('change', () => toggleSelect(chk.dataset.code)));
+  div.querySelectorAll('.done-btn').forEach(b => b.addEventListener('click', () => toggleVisited(b.dataset.code)));
+  div.querySelectorAll('.nm').forEach(nm => {
+    nm.style.cursor = 'pointer';
+    nm.addEventListener('click', () => {
+      const s = SITES.find(x => x.code === nm.dataset.code);
+      map.flyTo([s.lat, s.lng], 12, { duration: .7 });
+      setTimeout(() => markers[s.code].openPopup(), 500);
+    });
+  });
+});
+
+document.getElementById('origin-box').addEventListener('click', () => {
+  map.flyTo([ORIGIN.lat, ORIGIN.lng], 13, { duration: .7 });
+  setTimeout(() => homeMarker.openPopup(), 500);
+});
+
+// ── UI 갱신 ──
+function refreshUI() {
+  SITES.forEach(s => {
+    const picked = selected.includes(s.code), done = visited.has(s.code);
+    const itemEl = document.querySelector(`.item[data-code="${s.code}"]`);
+    const chk = document.querySelector(`.chk[data-code="${s.code}"]`);
+    const seqEl = document.getElementById('seq-'+s.code);
+    if (chk) chk.checked = picked;
+    if (itemEl) { itemEl.classList.toggle('picked', picked); itemEl.classList.toggle('done', done); }
+    if (seqEl) seqEl.textContent = picked ? (selected.indexOf(s.code)+1) : '';
+    markers[s.code].setIcon(makeIcon(s));
+  });
+  // 코스별 완료 카운트
+  Object.keys(COURSES).forEach(c => {
+    const items = SITES.filter(s => s.course === c);
+    const done = items.filter(s => visited.has(s.code)).length;
+    const el = document.getElementById('cc-'+c);
+    if (el) el.textContent = done > 0 ? `${done}/${items.length}` : items.length;
+  });
+  // 진행률
+  const total = SITES.length, doneCnt = SITES.filter(s => visited.has(s.code)).length;
+  document.getElementById('pg-done').textContent = doneCnt;
+  document.getElementById('pg-fill').style.width = (doneCnt/total*100) + '%';
+  // 30곳 완주 축하 (방금 달성한 순간에만)
+  maybeCelebrate(doneCnt, total);
+}
+
+// ── 🎉 완주 축하 ──
+let celebrated = false;
+function maybeCelebrate(doneCnt, total) {
+  if (doneCnt >= total) {
+    if (!celebrated) { celebrated = true; celebrate(); }
+  } else {
+    celebrated = false;
+  }
+}
+function fireConfetti() {
+  if (typeof confetti !== 'function') return;
+  // 중앙 펑
+  confetti({ particleCount: 160, spread: 100, origin: { y: 0.55 } });
+  // 양쪽에서 4초간 분수처럼
+  const end = Date.now() + 4000;
+  (function frame() {
+    confetti({ particleCount: 6, angle: 60, spread: 60, origin: { x: 0 } });
+    confetti({ particleCount: 6, angle: 120, spread: 60, origin: { x: 1 } });
+    if (Date.now() < end) requestAnimationFrame(frame);
+  })();
+}
+function celebrate() {
+  fireConfetti();
+  document.getElementById('celebrate-modal').classList.add('show');
+}
+document.getElementById('cm-close').addEventListener('click', () => {
+  document.getElementById('celebrate-modal').classList.remove('show');
+});
+
+// ── 경로 계산 (OSRM) ──
+// 모바일: 하단 고정 길찾기 패널 높이만큼 목록 아래 여백 확보 (가림 방지)
+function adjustBottomPad() {
+  const courses = document.getElementById('courses');
+  if (!isMobile) { courses.style.paddingBottom = ''; return; }
+  if (document.body.classList.contains('has-route')) {
+    const rs = document.getElementById('route-summary');
+    courses.style.paddingBottom = (rs.offsetHeight + 48) + 'px';
+  } else {
+    courses.style.paddingBottom = '40px';
+  }
+}
+
+async function recalcRoute() {
+  document.body.classList.toggle('has-route', selected.length > 0);
+  const empty = document.getElementById('rs-empty');
+  const content = document.getElementById('rs-content');
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  if (selected.length === 0) { empty.style.display = 'block'; content.style.display = 'none'; adjustBottomPad(); return; }
+  empty.style.display = 'none'; content.style.display = 'block';
+  document.getElementById('rs-count').textContent = selected.length;
+  adjustBottomPad();
+
+  const pts = [ORIGIN, ...selected.map(c => SITES.find(s => s.code === c))];
+  const coordStr = pts.map(p => `${p.lng},${p.lat}`).join(';');
+  document.getElementById('rs-dist').textContent = '계산중';
+  document.getElementById('rs-time').textContent = '…';
+
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.code === 'Ok' && data.routes && data.routes[0]) {
+      const r = data.routes[0];
+      const km = (r.distance/1000).toFixed(1);
+      const min = Math.round(r.duration/60), h = Math.floor(min/60), mm = min%60;
+      document.getElementById('rs-dist').textContent = km + ' km';
+      document.getElementById('rs-time').textContent = h>0 ? `${h}시간 ${mm}분` : `${mm}분`;
+      document.getElementById('rs-note').textContent = '출발지(재마루길) → 체크한 순서대로 · 실제 자동차 도로 기준';
+      routeLine = L.polyline(r.geometry.coordinates.map(c => [c[1], c[0]]), { color:'#2c3e50', weight:5, opacity:.75 }).addTo(map);
+      map.fitBounds(routeLine.getBounds(), { padding:[50,50] });
+    } else throw new Error('route fail');
+  } catch (e) {
+    let total = 0;
+    for (let i=0; i<pts.length-1; i++) total += haversine(pts[i], pts[i+1]);
+    document.getElementById('rs-dist').textContent = total.toFixed(1) + ' km';
+    document.getElementById('rs-time').textContent = '—';
+    document.getElementById('rs-note').textContent = '⚠ 도로경로 서버 응답 실패 → 직선거리 합으로 표시(실제 이동거리는 더 깁니다)';
+    routeLine = L.polyline(pts.map(p=>[p.lat,p.lng]), { color:'#2c3e50', weight:4, opacity:.6, dashArray:'8,8' }).addTo(map);
+    map.fitBounds(routeLine.getBounds(), { padding:[50,50] });
+  }
+}
+function haversine(a, b) {
+  const R=6371, toRad=d=>d*Math.PI/180;
+  const dLat=toRad(b.lat-a.lat), dLng=toRad(b.lng-a.lng);
+  const x=Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+}
+
+// 선택지를 (경유지 최대 5개 + 도착 1개 = 6곳) 한도로 정리
+function routeSites() {
+  let sites = selected.map(c => SITES.find(s => s.code === c));
+  let capped = false;
+  if (sites.length > 6) { sites = sites.slice(0, 6); capped = true; }
+  return { ep: sites[sites.length-1], vps: sites.slice(0,-1), capped };
+}
+function capAlert(capped) {
+  if (capped) alert('지도앱은 경유지 5개까지 지원해서, 앞 6곳만 자동 입력됩니다.\n나머지는 도착 후 다시 길찾기를 눌러주세요.');
+}
+
+// ── 네이버지도 길찾기 (자동차, 경유지 v1~v5) ──
+document.getElementById('btn-naver').addEventListener('click', () => {
+  if (selected.length === 0) return;
+  const { ep, vps, capped } = routeSites();
+  const enc = encodeURIComponent;
+  let url = `nmap://route/car?slat=${ORIGIN.lat}&slng=${ORIGIN.lng}&sname=${enc('출발지(재마루길)')}`
+          + `&dlat=${ep.lat}&dlng=${ep.lng}&dname=${enc(ep.name)}`;
+  vps.forEach((p, i) => { url += `&v${i+1}lat=${p.lat}&v${i+1}lng=${p.lng}&v${i+1}name=${enc(p.name)}`; });
+  url += `&appname=heritage30.planner`;
+  capAlert(capped);
+  window.location.href = url;
+});
+
+// ── 카카오맵 길찾기 (앱 스킴, 경유지 vp~vp5) ──
+document.getElementById('btn-kakao').addEventListener('click', () => {
+  if (selected.length === 0) return;
+  const { ep, vps, capped } = routeSites();
+  let url = `kakaomap://route?sp=${ORIGIN.lat},${ORIGIN.lng}&ep=${ep.lat},${ep.lng}&by=car`;
+  vps.forEach((p, i) => { url += `&${i===0?'vp':'vp'+(i+1)}=${p.lat},${p.lng}`; });
+  capAlert(capped);
+  window.location.href = url;
+});
+
+// ── 구글맵 (해외/참고용) ──
+document.getElementById('btn-google').addEventListener('click', () => {
+  if (selected.length === 0) return;
+  const pts = selected.map(c => SITES.find(s => s.code === c));
+  const origin = `${ORIGIN.lat},${ORIGIN.lng}`;
+  const destination = `${pts[pts.length-1].lat},${pts[pts.length-1].lng}`;
+  const mids = pts.slice(0, -1).map(p => `${p.lat},${p.lng}`).join('|');
+  let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
+  if (mids) url += `&waypoints=${encodeURIComponent(mids)}`;
+  window.open(url, '_blank');
+});
+
+// ── 선택한 곳 일괄 방문완료 ──
+document.getElementById('btn-done-all').addEventListener('click', () => {
+  if (selected.length === 0) return;
+  selected.forEach(c => visited.add(c));
+  saveVisited(); refreshUI();
+});
+
+// ── 초기화 ──
+document.getElementById('btn-clear').addEventListener('click', () => {
+  selected = [];
+  refreshUI(); recalcRoute();
+  map.fitBounds(bounds, { padding:[40,40] });
+});
+
+// ── 모바일 탭 전환 (지도뷰 / 코스짜기) ──
+function switchView(v) {
+  document.body.classList.remove('view-map', 'view-plan');
+  document.body.classList.add('view-' + v);
+  document.querySelectorAll('#mobile-tabs button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+  if (v === 'map') {
+    setTimeout(() => {
+      map.invalidateSize();
+      if (routeLine) map.fitBounds(routeLine.getBounds(), { padding:[50,50] });
+      else map.fitBounds(bounds, { padding:[40,40] });
+    }, 120);
+  }
+}
+document.querySelectorAll('#mobile-tabs button').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
+document.body.classList.add('view-plan'); // 모바일 기본: 코스짜기
+
+// 첫 렌더 (저장된 방문기록 반영) — 이미 30곳 완주 상태면 폭죽 생략
+celebrated = SITES.every(s => visited.has(s.code));
+refreshUI();
+</script>
+</body>
+</html>
